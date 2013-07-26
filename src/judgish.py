@@ -25,8 +25,9 @@ BATCH_THRESHOLD = 5  # Stop fetching when returned batches are <= this size
 class Judge(object):
     """Mine a Twitter timeline's metadata"""
 
-    def __init__(self, username, topcount=20):
+    def __init__(self, username, topcount=20, onlyretweets=False):
         """Set up bookkeeping"""
+        self.onlyretweets = onlyretweets
         self.topcount = topcount
         self.namehash = md5(username).hexdigest()
 
@@ -62,7 +63,8 @@ class Judge(object):
             yield {
                 'value': value,
                 'count': count,
-                'cumulative': 100.0 * runtotal / itemcount
+                'cum_count': runtotal,
+                'cum_perc': 100.0 * runtotal / itemcount
             }
 
     @property
@@ -70,26 +72,36 @@ class Judge(object):
         """Return as many of the user's timeline tweets as possible"""
         if self._tweets is not None:
             return self._tweets
+        tweets = self.getavailabletweets()
 
-        self._tweets = self._loadfromcache()
-        if self._tweets is not None:
-            return self._tweets
+        if self.onlyretweets:
+            self._tweets = [tweet for tweet in tweets if 'retweeted_status'
+                            in tweet]
+        else:
+            self._tweets = tweets
 
-        self._tweets = self.twitter.statuses.home_timeline(count=BATCH_SIZE)
-        logging.debug('Got %d tweets', len(self._tweets))
+        return self._tweets
+
+    def getavailabletweets(self):
+        tweets = self._loadfromcache()
+        if tweets is not None:
+            return tweets
+
+        tweets = self.twitter.statuses.home_timeline(count=BATCH_SIZE)
+        logging.debug('Got %d tweets', len(tweets))
 
         while True:
             moretweets = self.twitter.statuses.home_timeline(
-                count=BATCH_SIZE, max_id=self._tweets[-1]['id'])
+                count=BATCH_SIZE, max_id=tweets[-1]['id'])
             logging.debug('Got %d more tweets', len(moretweets))
-            self._tweets.extend(moretweets)
+            tweets.extend(moretweets)
             if len(moretweets) < BATCH_THRESHOLD:
                 break
 
         with open(self._cachefile, 'w') as outfile:
-            outfile.write(json.dumps(self._tweets))
+            outfile.write(json.dumps(tweets))
 
-        return self._tweets
+        return tweets
 
     @property
     def twitter(self):
@@ -144,34 +156,37 @@ class Judge(object):
 def main():
     """Handle the command line"""
 
-    try:
-        username = sys.argv[1]
-    except IndexError:
+    if len(sys.argv) < 2:
         print 'Usage: %s username' % sys.argv[0]
         return
 
-    j = Judge(username)
+    username = sys.argv[-1]
+    onlyretweets = '-r' in sys.argv[1:]
+
+    j = Judge(username, onlyretweets=onlyretweets)
 
     print 'Tweet count:', len(j.tweets)
     print 'Newest tweet:', j.tweets[0]['created_at']
     print 'Oldest tweet:', j.tweets[-1]['created_at']
     print
 
-    print 'Most common screen name'
+    stdformat = '  %(count)d (%(cum_count)d - %(cum_perc).1f%%): %(value)s'
+
+    print 'Most common screen name:'
     for value in j.process_allusers('screen_name'):
-        print '  %(count)d (%(cumulative).1f%%): %(value)s' % value
+        print stdformat % value
     print
 
     for key in ['time_zone', 'location']:
         print 'Most common unique user %s:' % key
         for value in j.process_uniqueusers(key):
-            print '  %(count)d (%(cumulative).1f%%): %(value)s' % value
+            print stdformat % value
         print
 
     for key in ['lang', 'source']:
         print 'Most common %s:' % key
         for value in j.process_alltweets(key):
-            print '  %(count)d (%(cumulative).1f%%): %(value)s' % value
+            print stdformat % value
         print
 
 
