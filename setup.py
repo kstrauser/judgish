@@ -13,6 +13,7 @@ setup(
     package_dir={'': 'src'},
     py_modules=['judgish'],
     install_requires=[
+        'textblob',
         'twitter',
     ]
 )

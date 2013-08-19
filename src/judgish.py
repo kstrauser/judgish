@@ -12,10 +12,11 @@ import os
 import sys
 import tempfile
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from hashlib import md5
 
 import twitter
+from text.blob import TextBlob
 
 CACHE_TIME = 3600
 BATCH_SIZE = 200  # <= 200 per Twitter API spec
@@ -83,6 +84,7 @@ class Judge(object):
         return self._tweets
 
     def getavailabletweets(self):
+        """Return the user's most recent cached or fresh tweets"""
         tweets = self._loadfromcache()
         if tweets is not None:
             return tweets
@@ -97,6 +99,11 @@ class Judge(object):
             tweets.extend(moretweets)
             if len(moretweets) < BATCH_THRESHOLD:
                 break
+
+        for tweet in tweets:
+            sentiment = TextBlob(tweet['text']).sentiment
+            tweet['polarity'] = sentiment[0]
+            tweet['subjectivity'] = sentiment[1]
 
         with open(self._cachefile, 'w') as outfile:
             outfile.write(json.dumps(tweets))
@@ -152,6 +159,21 @@ class Judge(object):
         values = Counter(user[key] for user in self.uniqueusers)
         return self._valueseries(values, len(self.uniqueusers))
 
+    def average_attribute_by_user(self, key):
+        """Return the per-user average value of the given attribute"""
+        userscores = defaultdict(list)
+        for tweet in self.tweets:
+            userscores[tweet['user']['screen_name']].append(tweet[key])
+
+        def average(tweetscores):
+            """Return the mean of the list of scores"""
+            return sum(tweetscores) / len(tweetscores)
+
+        scores = [(average(scorelist), user)
+                  for user, scorelist in userscores.items()]
+
+        return reversed(sorted(scores))
+
 
 def main():
     """Handle the command line"""
@@ -171,6 +193,7 @@ def main():
     print
 
     stdformat = '  %(count)d (%(cum_count)d - %(cum_perc).1f%%): %(value)s'
+    scoreformat = '  %.3f: %s'
 
     print 'Most common screen name:'
     for value in j.process_allusers('screen_name'):
@@ -187,6 +210,12 @@ def main():
         print 'Most common %s:' % key
         for value in j.process_alltweets(key):
             print stdformat % value
+        print
+
+    for key in ['polarity', 'subjectivity']:
+        print '%s in decreasing order:' % key.title()
+        for value in j.average_attribute_by_user(key):
+            print scoreformat % value
         print
 
 
