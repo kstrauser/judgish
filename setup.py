@@ -15,5 +15,6 @@ setup(
     install_requires=[
         'textblob',
         'twitter',
+        'PyYAML',
     ]
 )
