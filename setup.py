@@ -16,5 +16,10 @@ setup(
         'textblob',
         'twitter',
         'PyYAML',
-    ]
+    ],
+    entry_points={
+        'console_scripts': [
+            'judgish=judgish:main'
+        ],
+    },
 )

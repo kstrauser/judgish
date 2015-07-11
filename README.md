@@ -13,6 +13,11 @@ Judgish stems from my attempt to reclaim my Twitter timeline.
 
 # Getting Started
 
+Install Judgish and its requirements:
+
+    $ pip install -r requirements.txt
+    $ python setup.py install
+
 Create a [Twitter app](https://apps.twitter.com). This is
 inconvenient, but required because developers are forbidden from
 sharing their credentials. That is, you can't have my Twitter app
@@ -26,7 +31,7 @@ Create a file called `client.ini` with these contents:
 
 From that directory, run the Judgish command like:
 
-    $ judgish.py your_twitter_username
+    $ judgish your_twitter_username
 
 # License
 
