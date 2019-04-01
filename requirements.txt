@@ -1,3 +1,6 @@
-PyYAML==3.11
-textblob==0.5.2
-twitter==1.10.0
+nltk==3.4
+PyYAML==5.1
+singledispatch==3.4.0.3
+six==1.12.0
+textblob==0.15.3
+twitter==1.18.0
